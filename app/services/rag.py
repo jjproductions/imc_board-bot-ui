@@ -56,20 +56,41 @@ def rag(cRequest: ChatRequest) -> ChatResponse:
         top_k=cRequest.top_k,
     )
     chunks = retrieve(retRequest)
-    context, sources = _build_context(chunks)
+    context, _ = _build_context(chunks)
+
     if not context.strip():
-        noAnswer: ChatResponse = {
-            "answer": settings.BOARD_POLICIES_IDK_RESPONSE,
-            "citations": [],
-        }
-        return {
-            noAnswer
-        }
+        return ChatResponse(answer=settings.BOARD_POLICIES_IDK_RESPONSE, citations=[])
+
     ans = llm_answer(cRequest.question, context)
-    return {
-        "answer": ans.message, 
-        "citations": sources
-    }
+
+    def _extract_text(resp):
+        if resp is None:
+            return ""
+        if isinstance(resp, str):
+            return resp
+        msg = getattr(resp, "message", None) or getattr(resp, "text", None) or getattr(resp, "content", None)
+        if isinstance(msg, str):
+            return msg
+        if hasattr(msg, "content"):
+            return getattr(msg, "content")
+        if isinstance(resp, (list, tuple)) and len(resp) > 0:
+            first = resp[0]
+            if isinstance(first, str):
+                return first
+            if hasattr(first, "content"):
+                return getattr(first, "content")
+        return str(resp)
+
+    answer_text = _extract_text(ans)
+
+    citations = []
+    for ch in chunks:
+        text = getattr(ch, "text", "") or ""
+        payload = getattr(ch, "payload", {}) or {}
+        score = float(getattr(ch, "score", 0.0) or 0.0)
+        citations.append({"score": score, "text": text, "payload": payload})
+
+    return ChatResponse(answer=answer_text, citations=citations)
 
 
 

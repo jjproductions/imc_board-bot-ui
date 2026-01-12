@@ -25,16 +25,20 @@ def retrieve(sRequest: SearchRequest) -> List[Hit]:
     )
 
     out: List[Hit] = []
-    for p in res:
-        payload = getattr(p, "payload", {}) or {}
+    
+    for sp in res.points:  # sp is a qdrant_client.models.ScoredPoint
+        payload = sp.payload or {}
         if not isinstance(payload, dict):
             payload = {}
+
         text = payload.get(settings.TEXT_PAYLOAD_KEY, "")
         if not isinstance(text, str):
             text = str(text)
-        score = getattr(p, "score", None)
-        score = float(score) if score is not None else 0.0
+
+        score = float(sp.score) if sp.score is not None else 0.0
+
         out.append(Hit(text=text, score=score, payload=payload))
+
     return out
 
 
