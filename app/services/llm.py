@@ -1,6 +1,7 @@
 
 import ollama
 from ..core.config import settings
+import logging
 
 MODEL_NAME = settings.LLM_MODEL
 SYSTEM_PROMPT = settings.LLM_USER_PROMPT
@@ -25,4 +26,5 @@ If the answer is not in the context, say:
             {"role": "user", "content": user_prompt},
         ],
     )
+    logging.getLogger("app").info(f"LLM: {MODEL_NAME}")
     return resp

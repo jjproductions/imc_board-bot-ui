@@ -2,11 +2,11 @@ from pathlib import Path
 import os
 from pydantic import Field
 from typing import Literal
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # ---- Project paths ----------------------------------------------------------
 # Adjust parents[...] if your nesting differs.
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # Determine which environment to load (default: development)
 # OS env has highest precedence. If not set, we use "development".
@@ -19,7 +19,13 @@ ENV_FILE = PROJECT_ROOT / f".env.{ENV}"
 if not ENV_FILE.exists():
     ENV_FILE = PROJECT_ROOT / ".env"
 
-class Settings(BaseSettings):
+class AppSettings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=str(ENV_FILE),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     # Core
     APP_NAME: str = "Board Policy Bot API"
     APP_VERSION: str = "0.5.0"
@@ -36,7 +42,7 @@ class Settings(BaseSettings):
     TEXT_PAYLOAD_KEY: str = Field("text", env="TEXT_PAYLOAD_KEY")
     # LLM
     LLM_PROVIDER: str = Field("ollama", env="LLM_PROVIDER")
-    LLM_MODEL: str = Field("llama3.1:8b-instruct-q4_K_M", env="LLM_MODEL")
+    LLM_MODEL: str = Field(default="mixtral:8x7b-instruct-v0.1-q4_K_M", env="LLM_MODEL")
     LLM_SYS_PROMPT: str = Field(
         """You are an assistant that MUST answer ONLY using the provided context.
         If the answer is not explicitly contained in the context, reply:
@@ -69,4 +75,4 @@ class Settings(BaseSettings):
     TOP_K_DEFAULT: int = Field(5, env="TOP_K")
     MAX_CONTEXT_CHARS: int = Field(12000, env="MAX_CONTEXT_CHARS")
 
-settings = Settings()
+settings = AppSettings()

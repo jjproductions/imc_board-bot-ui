@@ -1,5 +1,5 @@
 
-from typing import Dict, List
+from typing import Dict, List, Any
 from qdrant_client import QdrantClient
 from .embeddings import embed, embed_text
 from ..core.config import settings
@@ -27,11 +27,12 @@ def retrieve(sRequest: SearchRequest) -> List[Hit]:
     out: List[Hit] = []
     
     for sp in res.points:  # sp is a qdrant_client.models.ScoredPoint
-        payload = sp.payload or {}
+        payload: Dict[str, Any] = sp.payload or {}
         if not isinstance(payload, dict):
             payload = {}
 
         text = payload.get(settings.TEXT_PAYLOAD_KEY, "")
+        
         if not isinstance(text, str):
             text = str(text)
 
