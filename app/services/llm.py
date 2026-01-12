@@ -1,12 +1,28 @@
-from typing import List, Dict
 
+import ollama
+from ..core.config import settings
 
-def generate_answer(messages: List[Dict], context: str | None = None) -> str:
-    """Minimal placeholder LLM call.
+MODEL_NAME = settings.LLM_MODEL
+SYSTEM_PROMPT = settings.LLM_USER_PROMPT
 
-    Replace with integration to Ollama, OpenAI, or other provider.
-    """
-    user_msgs = [m for m in messages if m.get("role") == "user"]
-    last = user_msgs[-1]["content"] if user_msgs else ""
-    ctx = f"\nContext:\n{context}" if context else ""
-    return f"(placeholder answer) Response to: '{last}'{ctx}"
+def answer(question: str, context: str) -> ollama.ChatResponse:
+    #user_prompt = f"{settings.LLM_USER_PROMPT}"
+    user_prompt = f"""Answer the user question using ONLY the context below.
+
+[CONTEXT]
+{context}
+
+[QUESTION]
+{question}
+
+If the answer is not in the context, say:
+"I do not know based on the provided IMC board policies context."
+"""
+    resp = ollama.chat(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+    )
+    return resp

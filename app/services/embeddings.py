@@ -1,6 +1,14 @@
+from sentence_transformers import SentenceTransformer
+from ..core.config import settings
 import hashlib
 import math
-from app.core.config import settings
+
+# BAAI/bge-m3 with normalization
+_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+
+def embed(text: str) -> list[float]:
+    return _model.encode(text, normalize_embeddings=True).tolist()
+
 
 
 def _hash_to_float(data: bytes) -> float:
@@ -8,6 +16,9 @@ def _hash_to_float(data: bytes) -> float:
     return int.from_bytes(h, "big") / ((1 << 64) - 1)
 
 
+
+
+# ------------------
 def embed_text(text: str) -> list[float]:
     """Deterministic placeholder embedding generator.
 

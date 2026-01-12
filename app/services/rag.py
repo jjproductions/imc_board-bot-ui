@@ -1,10 +1,83 @@
-from app.models.dto import Message
-from app.services import retrieval, llm
-from typing import List, Tuple
+
+import os
+from typing import Dict, Any, List, Tuple
+from .retrieval import retrieve, search_collection
+from .llm import answer as llm_answer
+from ..models.dto import ChatRequest, ChatResponse, SearchRequest, SearchResponse
+from ..core.config import settings
+import logging
 
 
+MAX_CONTEXT_CHARS = settings.MAX_CONTEXT_CHARS
+
+def _build_context(chunks: List[SearchResponse], max_chars: int = MAX_CONTEXT_CHARS) -> Tuple[str, List[Dict[str, Any]]]:
+    ctx_parts: List[str] = []
+    sources: List[Dict[str, Any]] = []
+    count = 0
+    for ch in chunks:
+        logging.getLogger("rag").debug(f"chunk={ch!r}")
+        text = ch.text if getattr(ch, "text", None) is not None else ""
+        piece = str(text).strip()
+        if not piece:
+            continue
+        remaining = max_chars - count
+        if len(piece) > remaining:
+            piece = piece[: max(0, remaining)]
+        ctx_parts.append(piece)
+        count += len(piece)
+
+        payload = ch.payload if getattr(ch, "payload", None) is not None else {}
+        if not isinstance(payload, dict):
+            payload = {}
+
+        src: Dict[str, Any] = {}
+        if getattr(ch, "score", None) is not None:
+            src["score"] = ch.score
+
+        title = payload.get("title") if payload.get("title") is not None else payload.get("section_title")
+        if title is not None:
+            src["title"] = title
+
+        for key in ("section_id", "doc_id", "page"):
+            val = payload.get(key)
+            if val is not None:
+                src[key] = val
+
+        sources.append(src)
+
+        if count >= max_chars:
+            break
+
+    return "\n\n".join(ctx_parts), sources
+
+def rag(cRequest: ChatRequest) -> ChatResponse:
+    retRequest: SearchRequest = SearchRequest(
+        query=cRequest.question,
+        top_k=cRequest.top_k,
+    )
+    chunks = retrieve(retRequest)
+    context, sources = _build_context(chunks)
+    if not context.strip():
+        noAnswer: ChatResponse = {
+            "answer": settings.BOARD_POLICIES_IDK_RESPONSE,
+            "citations": [],
+        }
+        return {
+            noAnswer
+        }
+    ans = llm_answer(cRequest.question, context)
+    return {
+        "answer": ans.message, 
+        "citations": sources
+    }
+
+
+
+
+
+# ------------------
 def search(query: str, top_k: int = 5, collection: str | None = None):
-    return retrieval.search_collection(query, top_k=top_k, collection=collection)
+    return search_collection(query, top_k=top_k, collection=collection)
 
 
 def answer_chat(req) -> Tuple[str, List[dict]]:
@@ -18,11 +91,11 @@ def answer_chat(req) -> Tuple[str, List[dict]]:
     context = None
     citations = []
     if last_user:
-        hits = retrieval.search_collection(last_user, top_k=req.top_k, collection=req.collection)
+        hits = search_collection(last_user, top_k=req.top_k, collection=req.collection)
         citations = hits
         # join top texts as context
         context = "\n---\n".join(h["text"] for h in hits)
 
     # Call LLM stub
-    answer = llm.generate_answer([m.dict() for m in req.messages], context=context)
+    answer = llm_answer([m.dict() for m in req.messages], context=context)
     return answer, citations
