@@ -11,28 +11,81 @@ import logging
 MAX_CONTEXT_CHARS = settings.MAX_CONTEXT_CHARS
 
 def _build_context(chunks: List[SearchResponse], max_chars: int = MAX_CONTEXT_CHARS) -> Tuple[str, List[Dict[str, Any]]]:
+    def format_hit(chit, max_excerpt_chars: int = 1000) -> str:
+        payload = getattr(chit, "payload", {}) or {}
+        title = payload.get("title") or payload.get("source_id") or payload.get("section_title") or "Unknown"
+        section = payload.get("section_path") or payload.get("section_title") or ""
+
+        pages = payload.get("pages") or ([] if payload.get("pages") is None else [payload.get("pages")])
+        if not pages and payload.get("page") is not None:
+            pages = [payload.get("page")]
+        page_str = "N/A"
+        try:
+            nums = [int(p) for p in pages if p is not None]
+            if nums:
+                page_str = f"{min(nums)}–{max(nums)}"
+        except Exception:
+            if pages:
+                page_str = ", ".join(map(str, pages))
+
+        text = payload.get("text") or getattr(chit, "text", "") or ""
+        excerpt = text if len(text) <= max_excerpt_chars else text[:max_excerpt_chars] + "..."
+
+        score = getattr(chit, "score", "N/A")
+        chunk_index = payload.get("chunk_index", "N/A")
+        source_id = payload.get("source_id") or payload.get("doc_id") or ""
+
+        return (
+            f"[Context]\n"
+            f"Title: {title}\n"
+            f"Section: {section}\n"
+            f"Pages: {page_str}\n"
+            f"Chunk Index: {chunk_index}\n"
+            f"Source Id: {source_id}\n"
+            f"Score: {score}\n"
+            f"Excerpt:\n{excerpt}\n---\n"
+        )
+
     ctx_parts: List[str] = []
     sources: List[Dict[str, Any]] = []
     count = 0
     for ch in chunks:
         logging.getLogger("rag").debug(f"chunk={ch!r}")
-        text = ch.text if getattr(ch, "text", None) is not None else ""
-        piece = str(text).strip()
-        if not piece:
+        part = format_hit(ch)
+        if not part:
             continue
-        remaining = max_chars - count
-        if len(piece) > remaining:
-            piece = piece[: max(0, remaining)]
-        ctx_parts.append(piece)
-        count += len(piece)
 
-        payload = ch.payload if getattr(ch, "payload", None) is not None else {}
+        remaining = max_chars - count
+        if remaining <= 0:
+            break
+
+        if len(part) > remaining:
+            part = part[: max(0, remaining)]
+            ctx_parts.append(part)
+            payload = getattr(ch, "payload", {}) or {}
+            src: Dict[str, Any] = {}
+            if getattr(ch, "score", None) is not None:
+                src["score"] = float(ch.score)
+            title = payload.get("title") or payload.get("section_title")
+            if title is not None:
+                src["title"] = title
+            for key in ("section_id", "doc_id", "page"):
+                val = payload.get(key)
+                if val is not None:
+                    src[key] = val
+            sources.append(src)
+            break
+
+        ctx_parts.append(part)
+        count += len(part)
+
+        payload = getattr(ch, "payload", {}) or {}
         if not isinstance(payload, dict):
             payload = {}
 
         src: Dict[str, Any] = {}
         if getattr(ch, "score", None) is not None:
-            src["score"] = ch.score
+            src["score"] = float(ch.score)
 
         title = payload.get("title") if payload.get("title") is not None else payload.get("section_title")
         if title is not None:

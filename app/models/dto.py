@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
+from ..core.config import settings
 
 class Hit(BaseModel):
     score: float
@@ -8,7 +9,7 @@ class Hit(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str
-    top_k: int | None = 5
+    top_k: int | None = settings.TOP_K_DEFAULT
 
 class ChatResponse(BaseModel):
     answer: str

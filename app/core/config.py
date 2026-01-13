@@ -72,7 +72,7 @@ class AppSettings(BaseSettings):
 
     PORT: int = Field(8002, env="PORT")
     
-    TOP_K_DEFAULT: int = Field(5, env="TOP_K")
-    MAX_CONTEXT_CHARS: int = Field(12000, env="MAX_CONTEXT_CHARS")
+    TOP_K_DEFAULT: int = Field(20, env="TOP_K")
+    MAX_CONTEXT_CHARS: int = Field(24000, env="MAX_CONTEXT_CHARS")
 
 settings = AppSettings()
